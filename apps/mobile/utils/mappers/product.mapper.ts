@@ -2,6 +2,10 @@ import type { ProductApi } from "@repo/types";
 
 type ProductListItem =
     ProductApi.ResponseTypes["GetProductsWithCategory"]["data"]["items"][number];
+type ProductListVariant = ProductListItem["variants"][number] & {
+    priceWithTax?: number;
+    compareAtPriceWithTax?: number | null;
+};
 
 type ProductDetail = ProductApi.ResponseTypes["GetProductById"]["data"];
 type ProductVariant = ProductDetail["variants"][number];
@@ -36,28 +40,29 @@ function getPrimaryImageFromVariants(variants: ProductVariant[]): string | null 
     return withAnyImage ? getVariantImage(withAnyImage) : null;
 }
 
-function getDisplayPrice(variants: ProductVariant[]): {
+function getListDisplayPrice(variants: ProductListItem["variants"]): {
     price: number;
     originalPrice?: number;
 } {
-    if (variants.length === 0) {
+    const displayVariants = variants.map(
+        (variant) => variant as ProductListVariant,
+    );
+    const sortedByPrice = [...displayVariants].sort(
+        (a, b) => (a.priceWithTax ?? a.price) - (b.priceWithTax ?? b.price),
+    );
+    const preferredVariant = sortedByPrice[0];
+
+    if (!preferredVariant) {
         return { price: 0 };
     }
 
-    const sortedByPrice = [...variants].sort((a, b) => a.price - b.price);
-    const preferredVariant = sortedByPrice[0];
+    const price = preferredVariant.priceWithTax ?? preferredVariant.price;
+    const compareAtPrice =
+        preferredVariant.compareAtPriceWithTax ?? preferredVariant.compareAtPrice;
 
-    if (
-        preferredVariant.compareAtPrice &&
-        preferredVariant.compareAtPrice > preferredVariant.price
-    ) {
-        return {
-            price: preferredVariant.price,
-            originalPrice: preferredVariant.compareAtPrice,
-        };
-    }
-
-    return { price: preferredVariant.price };
+    return compareAtPrice && compareAtPrice > price
+        ? { price, originalPrice: compareAtPrice }
+        : { price };
 }
 
 export function mapProductsToCardItems(products: ProductListItem[]): ProductCardItem[] {
@@ -67,7 +72,7 @@ export function mapProductsToCardItems(products: ProductListItem[]): ProductCard
             getPrimaryImageFromVariants(product.variants) ||
             PRODUCT_IMAGE_PLACEHOLDER;
 
-        const { price, originalPrice } = getDisplayPrice(product.variants);
+        const { price, originalPrice } = getListDisplayPrice(product.variants);
         const reviews = product.purchasedCount || 0;
 
         // Prefer active and in-stock variants for cart actions.

@@ -30,6 +30,7 @@ export default function ProductDetailScreen() {
   const [selectedVariantId, setSelectedVariantId] = useState<string | null>(
     null,
   );
+  const [isPriceBreakdownOpen, setIsPriceBreakdownOpen] = useState(false);
   const [isFavorite, setIsFavorite] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [relatedProducts, setRelatedProducts] = useState<RelatedProduct[]>([]);
@@ -105,14 +106,17 @@ export default function ProductDetailScreen() {
     return mapProductDetailImage(product, selectedVariant);
   }, [product, selectedVariant]);
 
-  const variantPrice = selectedVariant?.price || 0;
+  const baseVariantPrice = selectedVariant?.price || 0;
+  const variantTax = selectedVariant?.taxAmount ?? 0;
+  const variantPrice = selectedVariant?.priceWithTax ?? baseVariantPrice;
   const canAddToCart = Boolean(
     selectedVariant && selectedVariant.isActive && selectedVariant.stock > 0,
   );
   const compareAtPrice =
-    selectedVariant?.compareAtPrice &&
-    selectedVariant.compareAtPrice > variantPrice
-      ? selectedVariant.compareAtPrice
+    (selectedVariant?.compareAtPriceWithTax ?? selectedVariant?.compareAtPrice) &&
+    (selectedVariant?.compareAtPriceWithTax ?? selectedVariant?.compareAtPrice)! >
+      variantPrice
+      ? selectedVariant?.compareAtPriceWithTax ?? selectedVariant?.compareAtPrice
       : null;
 
   const discountPercent = compareAtPrice
@@ -218,23 +222,74 @@ export default function ProductDetailScreen() {
             {product.name}
           </Text>
 
-          <View className="flex-row items-baseline gap-3 mb-5">
-            <Text className="text-2xl font-bold text-primary">
-              Rs. {variantPrice.toLocaleString()}
-            </Text>
-            {compareAtPrice ? (
-              <>
-                <Text className="text-lg text-text-muted line-through">
-                  Rs. {compareAtPrice.toLocaleString()}
+          <View className="mb-5 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3">
+            <View className="flex-row items-center justify-between">
+              <View className="flex-1 flex-row flex-wrap items-baseline gap-x-3 gap-y-1">
+                <Text className="text-2xl font-bold text-primary">
+                  Rs. {variantPrice.toLocaleString()}
                 </Text>
-                <View className="bg-primary/20 px-2 py-1 rounded">
-                  <Text className="text-primary text-xs font-bold">
+                {compareAtPrice ? (
+                  <Text className="text-base text-text-muted line-through">
+                    Rs. {compareAtPrice.toLocaleString()}
+                  </Text>
+                ) : null}
+              </View>
+              {compareAtPrice ? (
+                <View className="ml-2 rounded-md bg-primary px-2.5 py-1.5">
+                  <Text className="text-[11px] font-bold text-background">
                     {discountPercent}% OFF
                   </Text>
                 </View>
-              </>
-            ) : null}
+              ) : null}
+            </View>
+
+            <View className="mt-1 flex-row items-center justify-between">
+              <Text className="text-xs font-medium text-text-secondary">
+                Inclusive of all taxes
+              </Text>
+              <TouchableOpacity
+                onPress={() => setIsPriceBreakdownOpen((open) => !open)}
+                className="flex-row items-center gap-1 py-1"
+                accessibilityRole="button"
+                accessibilityLabel="Show price breakup"
+              >
+                <Text className="text-sm font-bold text-primary">
+                  Price breakup
+                </Text>
+                <MaterialCommunityIcons
+                  name={isPriceBreakdownOpen ? "chevron-up" : "chevron-down"}
+                  size={18}
+                  color="#C9A962"
+                />
+              </TouchableOpacity>
+            </View>
           </View>
+
+          {isPriceBreakdownOpen ? (
+            <View className="mb-5 rounded-xl border border-surface-border bg-surface px-4 py-3">
+              <View className="mb-2 flex-row justify-between">
+                <Text className="text-xs text-text-secondary">Item price</Text>
+                <Text className="text-xs text-text-primary">
+                  Rs. {baseVariantPrice.toLocaleString()}
+                </Text>
+              </View>
+              <View className="mb-2 flex-row justify-between">
+                <Text className="text-xs text-text-secondary">Taxes</Text>
+                <Text className="text-xs text-text-primary">
+                  Rs. {variantTax.toLocaleString()}
+                </Text>
+              </View>
+              <View className="h-px bg-surface-border" />
+              <View className="mt-2 flex-row justify-between">
+                <Text className="text-xs font-bold text-text-primary">
+                  Final price
+                </Text>
+                <Text className="text-xs font-bold text-primary">
+                  Rs. {variantPrice.toLocaleString()}
+                </Text>
+              </View>
+            </View>
+          ) : null}
 
           {product.description ? (
             <Text className="text-text-secondary leading-relaxed italic mb-6">
@@ -285,7 +340,7 @@ export default function ProductDetailScreen() {
                           className="text-xs font-semibold text-text-primary"
                           numberOfLines={1}
                         >
-                          Rs. {variant.price.toLocaleString()}
+                          Rs. {(variant.priceWithTax ?? variant.price).toLocaleString()}
                         </Text>
                         <Text
                           className="text-[10px] text-text-secondary"
